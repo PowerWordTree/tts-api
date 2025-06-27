@@ -1,0 +1,10 @@
+[project]
+name = "pwt.tts-api"
+version = "0.0.1"
+requires-python = ">= 3.10"
+readme = "README.md"
+license = { file = "LICENSE" }
+dependencies = ["numpy", "fastapi", "uvicorn", "dill"]
+
+[project.scripts]
+tts-api = "pwt.tts_api.api:main"
