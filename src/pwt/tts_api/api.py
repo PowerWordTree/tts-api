@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import io
 import wave
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Query
@@ -31,6 +32,8 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/tts")
 async def tts_endpoint(audio_prompt: str = Query(...), text: str = Query(...)):
+    # 获取完整路径
+    audio_prompt = str(Path(audio_prompt).resolve())
     # 模型推理
     async with app.state.model_pool.acquire_context(audio_prompt) as resource:
         resource.tag = audio_prompt
