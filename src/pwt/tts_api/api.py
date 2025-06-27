@@ -13,22 +13,10 @@ from pwt.tts_api.model_runner import ModelRunner
 from pwt.tts_api.tag_resource_pool import TagResource, TagResourcePool
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="IndexTTS API")
-    parser.add_argument("--host", type=str, default="0.0.0.0", help="监听地址")
-    parser.add_argument("--port", type=int, default=7860, help="监听端口")
-    parser.add_argument("--jobs", type=int, default=1, help="模型并发数")
-    return parser.parse_args()
-
-
-# 解析命令行
-args = parse_args()
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    jobs = args.jobs
     app.state.model_pool = TagResourcePool()
+    jobs = app.state.args.jobs
     resouces = [TagResource(None, ModelRunner()) for i in range(0, jobs, 1)]
     await app.state.model_pool.register_Resources(resouces)
     yield  # 应用运行中
@@ -63,7 +51,18 @@ async def tts_endpoint(audio_prompt: str = Query(...), text: str = Query(...)):
     return StreamingResponse(buffer, media_type="audio/wav")
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="IndexTTS API")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="监听地址")
+    parser.add_argument("--port", type=int, default=7860, help="监听端口")
+    parser.add_argument("--jobs", type=int, default=1, help="模型并发数")
+    return parser.parse_args()
+
+
 def main():
+    # 解析命令行
+    args = parse_args()
+    app.state.args = args
     # 启动API服务
     uvicorn.run(app, host=args.host, port=args.port)
 
