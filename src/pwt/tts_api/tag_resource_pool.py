@@ -5,18 +5,21 @@ from typing import Iterable
 from pwt.tts_api.model_runner import ModelRunner
 
 
-@dataclass(frozen=True, eq=True)
+@dataclass
 class TagResource:
     tag: str | None
     model: ModelRunner
+
+    def __hash__(self):
+        return hash(self.model.process)
 
 
 class TagResourcePool:
     def __init__(self) -> None:
         # 可分配的空闲资源列表(活跃度从低到高排序, 末尾最活跃)
-        self._idle_Resources = []
+        self._idle_resources = []
         # 当前占用中的资源集合(快速查重)
-        self._active_Resources = set()
+        self._active_resources = set()
         self._condition = asyncio.Condition()
 
     async def register_Resources(self, Resources: Iterable[TagResource]) -> None:
@@ -28,7 +31,7 @@ class TagResourcePool:
             Resources: 待注册的资源迭代器
         """
         async with self._condition:
-            self._idle_Resources.extend(Resources)
+            self._idle_resources.extend(Resources)
             self._condition.notify_all()
 
     async def acquire(self, tag: str | None = None) -> TagResource:
@@ -44,17 +47,17 @@ class TagResourcePool:
             获取到的资源
         """
         async with self._condition:
-            while not self._idle_Resources:
+            while not self._idle_resources:
                 await self._condition.wait()
             # 从最活跃(末尾)到最不活跃(头部)遍历查找匹配tag的资源
-            for i in range(len(self._idle_Resources) - 1, -1, -1):
-                if self._idle_Resources[i].tag == tag:
-                    Resource = self._idle_Resources.pop(i)
+            for i in range(len(self._idle_resources) - 1, -1, -1):
+                if self._idle_resources[i].tag == tag:
+                    Resource = self._idle_resources.pop(i)
                     break
             else:
                 # 未找到匹配时,获取最不活跃的资源
-                Resource = self._idle_Resources.pop(0)
-            self._active_Resources.add(Resource)
+                Resource = self._idle_resources.pop(0)
+            self._active_resources.add(Resource)
             return Resource
 
     async def release(self, Resource: TagResource) -> None:
@@ -66,13 +69,14 @@ class TagResourcePool:
             Resource: 待释放的资源
         """
         async with self._condition:
-            if Resource in self._active_Resources:
-                self._active_Resources.remove(Resource)
-                self._idle_Resources.append(Resource)
+            if Resource in self._active_resources:
+                self._active_resources.remove(Resource)
+                self._idle_resources.append(Resource)
                 self._condition.notify_all()
 
     def acquire_context(self, tag: str | None = None) -> "TagResourceContext":
         return TagResourceContext(self, tag)
+
 
 class TagResourceContext:
     def __init__(self, pool: TagResourcePool, tag: str | None = None):

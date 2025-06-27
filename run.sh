@@ -1,3 +1,3 @@
 #! /bin/bash
 
-PYTHONPATH=./src python -m pwt.tts_api.api
+PYTHONPATH=./src python -m pwt.tts_api.api "$@"

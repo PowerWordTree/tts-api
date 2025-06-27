@@ -17,11 +17,12 @@ from pwt.tts_api.tag_resource_pool import TagResource, TagResourcePool
 async def lifespan(app: FastAPI):
     app.state.model_pool = TagResourcePool()
     jobs = app.state.args.jobs
-    resouces = [TagResource(None, ModelRunner()) for i in range(0, jobs, 1)]
-    await app.state.model_pool.register_Resources(resouces)
+    resources = [TagResource(None, ModelRunner()) for i in range(0, jobs, 1)]
+    await app.state.model_pool.register_Resources(resources)
     yield  # 应用运行中
-    for resouce in resouces:
-        resouce.model.close()
+    await asyncio.gather(
+        *[asyncio.to_thread(resource.model.close) for resource in resources]
+    )
 
 
 # # FastAPI
@@ -32,6 +33,7 @@ app = FastAPI(lifespan=lifespan)
 async def tts_endpoint(audio_prompt: str = Query(...), text: str = Query(...)):
     # 模型推理
     async with app.state.model_pool.acquire_context(audio_prompt) as resource:
+        resource.tag = audio_prompt
         sampling_rate, wav_data = await asyncio.to_thread(
             resource.model.infer, audio_prompt, text
         )
