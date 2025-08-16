@@ -9,21 +9,32 @@ from fastapi import FastAPI, Query
 from fastapi.concurrency import asynccontextmanager
 from fastapi.responses import StreamingResponse
 
-from pwt.tts_api import audio_utils
 from pwt.tts_api.model_runner import ModelRunner
-from pwt.tts_api.tag_resource_pool import TagResource, TagResourcePool
+from pwt.utils import ndarray_audio_utils
+from pwt.utils.tag_pool import TagData, TagPool
+
+
+async def init_model() -> TagData[ModelRunner]:
+    runner = await asyncio.to_thread(ModelRunner)
+    return TagData(runner)
+
+
+async def close_model(tag_data: TagData[ModelRunner]) -> None:
+    if tag_data.data is None:
+        return
+    await asyncio.to_thread(tag_data.data.close)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.model_pool = TagResourcePool()
-    jobs = app.state.args.jobs
-    resources = [TagResource(None, ModelRunner()) for i in range(0, jobs, 1)]
-    await app.state.model_pool.register_Resources(resources)
-    yield  # 应用运行中
-    await asyncio.gather(
-        *[asyncio.to_thread(resource.model.close) for resource in resources]
+    tag_pool = await TagPool.create(
+        max_size=app.state.args.jobs,
+        register_factory=init_model,
+        destroy_factory=close_model,
     )
+    app.state.model_pool = tag_pool
+    yield  # 应用运行中
+    await tag_pool.close()
 
 
 # # FastAPI
@@ -35,20 +46,20 @@ async def tts_endpoint(audio_prompt: str = Query(...), text: str = Query(...)):
     # 获取完整路径
     audio_prompt = str(Path(audio_prompt).resolve())
     # 模型推理
-    async with app.state.model_pool.acquire_context(audio_prompt) as resource:
-        resource.tag = audio_prompt
-        sampling_rate, wav_data = await asyncio.to_thread(
-            resource.model.infer, audio_prompt, text
+    async with app.state.model_pool.lease(audio_prompt) as tag_data:
+        tag_data.tag = audio_prompt
+        sample_rate, wav_data = await asyncio.to_thread(
+            tag_data.data.infer, audio_prompt, text
         )
     # 获取音频信息
-    info = audio_utils.get_audio_info_from_gradio(sampling_rate, wav_data)
+    info = ndarray_audio_utils.probe_audio_metadata(sample_rate, wav_data)
     print("音频信息:", info)
 
     # 写入内存 WAV 流
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as wf:
-        wf.setnchannels(info["channels"])
-        wf.setsampwidth(info["sample_width"])  # 通常 int16 -> 2 字节
+        wf.setnchannels(info["num_channels"])
+        wf.setsampwidth(info["bytes_per_sample"])  # 通常 int16 -> 2 字节
         wf.setframerate(info["sample_rate"])
         wf.writeframes(wav_data.tobytes())
 

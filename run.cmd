@@ -1,4 +1,4 @@
 @ECHO OFF
 
 SET "PYTHONPATH=.\src"
-python -m pwt.tts_api.api %*
+python -m pwt.tts_api.model_worker %*
