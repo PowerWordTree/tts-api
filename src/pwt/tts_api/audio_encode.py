@@ -30,7 +30,7 @@ async def queue_iter(queue: janus.Queue) -> AsyncContentStream:
             if isinstance(data, Exception):
                 raise data
             yield data
-    except (janus.ShutDown, janus.QueueShutDown):
+    except (janus.SyncQueueShutDown, janus.AsyncQueueShutDown):
         pass
     except BaseException:
         raise asyncio.CancelledError()
@@ -42,7 +42,7 @@ def make_done_callback(queue: janus.Queue) -> Callable[[asyncio.Task[None]], Non
     def done_callback(task: asyncio.Task[None]) -> None:
         try:
             task.result()
-        except (janus.ShutDown, janus.QueueShutDown):
+        except (janus.SyncQueueShutDown, janus.AsyncQueueShutDown):
             pass
         except BaseException as exc:
             queue.sync_q.put(exc)
