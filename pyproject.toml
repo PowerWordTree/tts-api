@@ -5,6 +5,7 @@ requires-python = ">= 3.10"
 readme = "README.md"
 license = { file = "LICENSE" }
 dependencies = [
+    "pwt.utils[pydantic_utils, ndarray_audio_utils] @ git+https://github.com/PowerWordTree/python-utils.git@main",
     "numpy",
     "starlette",
     "uvicorn",
@@ -15,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-tts-api = "pwt.tts_api.api:main"
+tts-api = "pwt.tts_api.model_worker:main"
 
 
 [project.optional-dependencies]

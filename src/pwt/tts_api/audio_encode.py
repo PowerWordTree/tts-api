@@ -13,7 +13,7 @@ import lameenc
 import numpy as np
 
 from pwt.tts_api.wav_header import wav_header
-from pwt.utils import ndarray_audio_utils
+from pwt.utils.audio import ndarray_audio_utils
 
 DEFAULT_LIMIT = 512
 _EOF: Final = object()
